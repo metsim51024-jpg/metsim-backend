@@ -5,11 +5,15 @@ require('dotenv').config();
 
 const app = express();
 
+
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5000'],
+  origin: "https://metsim-frontend.vercel.app/",
+  methods: ["GET", "POST"],
   credentials: true
 }));
+
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
