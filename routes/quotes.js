@@ -3,14 +3,9 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const mongoose = require('mongoose');
-
-// Importar modelo
-let Quote;
-try {
-  Quote = require('../models/Quote');
-} catch (err) {
-  console.error('❌ Error importando Quote model:', err.message);
-}
+const Quote = require('../models/Quote');
+const { sendQuoteToClient, sendQuoteToAdmin } = require('../services/emailService');
+const { uploadFile } = require('../services/cloudinaryService');
 
 // Configurar multer
 const storage = multer.memoryStorage();
@@ -24,33 +19,45 @@ router.post('/', upload.array('files', 10), async (req, res) => {
   try {
     const { client_name, client_email, client_phone, description } = req.body;
 
-    console.log('📥 [POST /api/quotes] Datos recibidos:', {
-      client_name: client_name ? '✅' : '❌',
-      client_email: client_email ? '✅' : '❌',
-      client_phone: client_phone ? '✅' : '❌',
-      description: description ? '✅' : '❌'
-    });
+    console.log('📥 Nuevas cotización recibida');
 
     // Validar datos
     if (!client_name || !client_email || !client_phone || !description) {
       return res.status(400).json({
         success: false,
-        message: 'Todos los campos son requeridos',
-        received: { client_name, client_email, client_phone, description: !!description }
+        message: 'Todos los campos son requeridos'
       });
     }
 
-    // Verificar conexión MongoDB
+    // Verificar MongoDB
     if (mongoose.connection.readyState !== 1) {
-      console.warn('⚠️ MongoDB no conectado. Estado:', mongoose.connection.readyState);
       return res.status(503).json({
         success: false,
-        message: 'Base de datos no disponible. Por favor intenta nuevamente.',
-        mongoStatus: mongoose.connection.readyState
+        message: 'Base de datos no disponible'
       });
     }
 
-    console.log('✅ MongoDB conectado. Guardando cotización...');
+    // Subir archivos a Cloudinary
+    let fileUrls = [];
+    if (req.files && req.files.length > 0) {
+      console.log(`📤 Subiendo ${req.files.length} archivos a Cloudinary...`);
+      
+      for (const file of req.files) {
+        try {
+          const uploadResult = await uploadFile(file.buffer, file.originalname);
+          fileUrls.push({
+            filename: file.originalname,
+            size: file.size,
+            url: uploadResult.secure_url,
+            cloudinaryId: uploadResult.public_id,
+            uploadedAt: new Date()
+          });
+          console.log(`✅ Archivo subido: ${file.originalname}`);
+        } catch (error) {
+          console.error(`❌ Error subiendo ${file.originalname}:`, error.message);
+        }
+      }
+    }
 
     // Crear cotización
     const quote = new Quote({
@@ -58,41 +65,35 @@ router.post('/', upload.array('files', 10), async (req, res) => {
       client_email: client_email.trim(),
       client_phone: client_phone.trim(),
       description: description.trim(),
-      file_urls: [],
+      file_urls: fileUrls,
       status: 'pending',
       created_at: new Date()
     });
 
     const savedQuote = await quote.save();
-    console.log('✅ Cotización guardada con ID:', savedQuote._id);
+    console.log('✅ Cotización guardada en MongoDB:', savedQuote._id);
+
+    // Enviar emails
+    await sendQuoteToClient(savedQuote);
+    await sendQuoteToAdmin(savedQuote, fileUrls);
 
     res.status(201).json({
       success: true,
-      message: 'Cotización creada correctamente',
+      message: 'Cotización creada y notificaciones enviadas',
       quote: {
         id: savedQuote._id,
         client_name: savedQuote.client_name,
         client_email: savedQuote.client_email,
+        files_uploaded: fileUrls.length,
         created_at: savedQuote.created_at
       }
     });
 
   } catch (error) {
-    console.error('❌ Error al crear cotización:', error.message);
-    
-    // Validar si es error de timeout
-    if (error.name === 'MongoTimeoutError' || error.message.includes('timeout')) {
-      return res.status(504).json({
-        success: false,
-        message: 'Tiempo de conexión agotado. MongoDB no responde.',
-        error: error.message
-      });
-    }
-
+    console.error('❌ Error:', error.message);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error al guardar la cotización',
-      error: process.env.NODE_ENV === 'development' ? error.toString() : undefined
+      message: error.message
     });
   }
 });
@@ -100,13 +101,6 @@ router.post('/', upload.array('files', 10), async (req, res) => {
 // GET - Obtener todas
 router.get('/', async (req, res) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({
-        success: false,
-        message: 'MongoDB no disponible'
-      });
-    }
-
     const quotes = await Quote.find().sort({ created_at: -1 }).lean();
     res.json({
       success: true,
@@ -114,7 +108,6 @@ router.get('/', async (req, res) => {
       quotes
     });
   } catch (error) {
-    console.error('Error obteniendo cotizaciones:', error.message);
     res.status(500).json({
       success: false,
       message: error.message
