@@ -2,12 +2,11 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const multer = require('multer');
 require('dotenv').config();
 
 const app = express();
 
-// ✅ CORS CONFIGURADO
+// ✅ CORS
 app.use(cors({
   origin: [
     'https://metsim-frontend.vercel.app',
@@ -23,23 +22,38 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-console.log('🚀 Variables de entorno:');
-console.log('   MONGODB_URI:', process.env.MONGODB_URI ? '✅ Configurado' : '❌ No configurado');
-console.log('   PORT:', process.env.PORT || 5000);
-console.log('   NODE_ENV:', process.env.NODE_ENV || 'development');
+console.log('\n🚀 ====== INICIANDO SERVIDOR ======');
+console.log('📍 NODE_ENV:', process.env.NODE_ENV || 'development');
+console.log('🔌 PORT:', process.env.PORT || 5000);
 
-// Conectar MongoDB
+// Verificar MongoDB URI
+if (!process.env.MONGODB_URI) {
+  console.error('❌ ERROR: MONGODB_URI no está configurado en .env');
+  process.exit(1);
+}
+
+console.log('📊 MONGODB_URI configurado: ✅');
+
+// ✅ CONECTAR MONGODB
 const connectDB = async () => {
   try {
+    console.log('⏳ Conectando a MongoDB...');
+    
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      retryWrites: true
     });
-    console.log(`✅ MongoDB conectado: ${conn.connection.host}`);
+
+    console.log(`✅ MongoDB CONECTADO`);
+    console.log(`   Host: ${conn.connection.host}`);
+    console.log(`   DB: ${conn.connection.name}`);
+    
   } catch (error) {
-    console.error(`❌ Error MongoDB: ${error.message}`);
-    console.log('⏳ Reintentando en 5 segundos...');
+    console.error(`❌ ERROR MongoDB: ${error.message}`);
+    console.error('   Reintentando en 5 segundos...');
     setTimeout(connectDB, 5000);
   }
 };
@@ -47,6 +61,7 @@ const connectDB = async () => {
 connectDB();
 
 // ✅ RUTAS
+console.log('\n📍 Registrando rutas...');
 app.use('/api/quotes', require('./routes/quotes'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/contacts', require('./routes/contacts'));
@@ -55,20 +70,25 @@ app.use('/api/projects', require('./routes/projects'));
 // Health check
 app.get('/api/health', (req, res) => {
   const mongoStatus = mongoose.connection.readyState;
+  const statusText = {
+    0: 'Desconectado',
+    1: 'Conectado',
+    2: 'Conectando...',
+    3: 'Desconectando...'
+  };
+
   res.json({
     status: 'Backend funcionando ✅',
-    mongodb: mongoStatus === 1 ? 'Conectado' : mongoStatus === 0 ? 'Desconectado' : 'Conectando...',
+    mongodb: statusText[mongoStatus] || 'Desconocido',
+    mongoReadyState: mongoStatus,
     timestamp: new Date().toISOString(),
-    routes: {
-      quotes: '/api/quotes',
-      health: '/api/health'
-    }
+    env: process.env.NODE_ENV || 'development'
   });
 });
 
 // Error handling
 app.use((err, req, res, next) => {
-  console.error('❌ Error:', err);
+  console.error('❌ Error:', err.message);
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Error del servidor',
@@ -78,7 +98,6 @@ app.use((err, req, res, next) => {
 
 // 404
 app.use((req, res) => {
-  console.warn(`⚠️ Ruta no encontrada: ${req.method} ${req.url}`);
   res.status(404).json({
     success: false,
     message: `Ruta no encontrada: ${req.method} ${req.url}`,
@@ -92,10 +111,10 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`\n🚀 Servidor escuchando en puerto ${PORT}`);
-  console.log(`📡 CORS habilitado para Vercel`);
-  console.log(`\n✅ Prueba tu backend en:`);
-  console.log(`   https://metsim-backend.onrender.com/api/health\n`);
+  console.log('\n✅ ===== SERVIDOR ACTIVO =====');
+  console.log(`   http://localhost:${PORT}`);
+  console.log(`   https://metsim-backend.onrender.com`);
+  console.log('==============================\n');
 });
 
 module.exports = app;
