@@ -4,7 +4,7 @@ const router = express.Router();
 const multer = require('multer');
 const mongoose = require('mongoose');
 const Quote = require('../models/Quote');
-const { sendQuoteToClient, sendQuoteToAdmin } = require('../services/emailService');
+const { sendQuoteToClient, sendQuoteToAdmin } = require('../services/emailServiceResend');
 const { uploadFile } = require('../services/cloudinaryService');
 
 // Configurar multer
@@ -19,13 +19,25 @@ router.post('/', upload.array('files', 10), async (req, res) => {
   try {
     const { client_name, client_email, client_phone, description } = req.body;
 
-    console.log('📥 Nuevas cotización recibida');
+    console.log('\n📥 ===== NUEVA COTIZACIÓN RECIBIDA =====');
+    console.log(`   Cliente: ${client_name}`);
+    console.log(`   Email: ${client_email}`);
+    console.log(`   Archivos: ${req.files?.length || 0}`);
 
     // Validar datos
     if (!client_name || !client_email || !client_phone || !description) {
       return res.status(400).json({
         success: false,
         message: 'Todos los campos son requeridos'
+      });
+    }
+
+    // Validar email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(client_email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email inválido'
       });
     }
 
@@ -40,7 +52,7 @@ router.post('/', upload.array('files', 10), async (req, res) => {
     // Subir archivos a Cloudinary
     let fileUrls = [];
     if (req.files && req.files.length > 0) {
-      console.log(`📤 Subiendo ${req.files.length} archivos a Cloudinary...`);
+      console.log(`\n📤 Subiendo ${req.files.length} archivos a Cloudinary...`);
       
       for (const file of req.files) {
         try {
@@ -52,14 +64,14 @@ router.post('/', upload.array('files', 10), async (req, res) => {
             cloudinaryId: uploadResult.public_id,
             uploadedAt: new Date()
           });
-          console.log(`✅ Archivo subido: ${file.originalname}`);
+          console.log(`   ✅ ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
         } catch (error) {
-          console.error(`❌ Error subiendo ${file.originalname}:`, error.message);
+          console.error(`   ❌ Error subiendo ${file.originalname}:`, error.message);
         }
       }
     }
 
-    // Crear cotización
+    // Crear cotización en MongoDB
     const quote = new Quote({
       client_name: client_name.trim(),
       client_email: client_email.trim(),
@@ -71,26 +83,38 @@ router.post('/', upload.array('files', 10), async (req, res) => {
     });
 
     const savedQuote = await quote.save();
-    console.log('✅ Cotización guardada en MongoDB:', savedQuote._id);
+    console.log(`\n💾 Cotización guardada en MongoDB`);
+    console.log(`   ID: ${savedQuote._id}`);
 
-    // Enviar emails
-    await sendQuoteToClient(savedQuote);
-    await sendQuoteToAdmin(savedQuote, fileUrls);
-
+    // ✅ RESPONDER INMEDIATAMENTE
     res.status(201).json({
       success: true,
-      message: 'Cotización creada y notificaciones enviadas',
+      message: 'Cotización creada exitosamente. Recibirás un email de confirmación.',
       quote: {
         id: savedQuote._id,
         client_name: savedQuote.client_name,
         client_email: savedQuote.client_email,
-        files_uploaded: fileUrls.length,
-        created_at: savedQuote.created_at
+        files_uploaded: fileUrls.length
       }
     });
 
+    // ENVIAR EMAILS EN BACKGROUND (NO ESPERAR)
+    console.log('\n📧 Enviando notificaciones por email...');
+    
+    sendQuoteToClient(savedQuote).catch(err => {
+      console.error('❌ Error enviando email al cliente:', err.message);
+    });
+
+    sendQuoteToAdmin(savedQuote, fileUrls).catch(err => {
+      console.error('❌ Error enviando email al admin:', err.message);
+    });
+
+    console.log('=====================================\n');
+
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('\n❌ ERROR:', error.message);
+    console.error('=====================================\n');
+    
     res.status(500).json({
       success: false,
       message: error.message
