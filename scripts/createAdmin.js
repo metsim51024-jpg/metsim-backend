@@ -29,7 +29,7 @@ async function createAdmin() {
     
     const admin = new Admin({
       username: 'admin',
-      password: admin123456
+      password: hashedPassword
     });
 
     await admin.save();
