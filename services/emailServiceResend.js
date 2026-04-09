@@ -5,17 +5,19 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 console.log('\n🔧 Configurando Resend Email Service...');
 console.log('   RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✅' : '❌');
-console.log('   SENDER_EMAIL:', process.env.SENDER_EMAIL ? '✅' : '❌');
-console.log('   ADMIN_EMAIL:', process.env.ADMIN_EMAIL ? '✅' : '❌\n');
+console.log('   SENDER_EMAIL:', process.env.SENDER_EMAIL, process.env.SENDER_EMAIL ? '✅' : '❌');
+console.log('   ADMIN_EMAIL:', process.env.ADMIN_EMAIL, process.env.ADMIN_EMAIL ? '✅' : '❌\n');
 
 // Email al cliente
 const sendQuoteToClient = async (quote) => {
   try {
     console.log(`📧 Enviando email a cliente: ${quote.client_email}`);
+    console.log(`   Desde: ${process.env.SENDER_EMAIL}`);
 
     const data = await resend.emails.send({
       from: `METSIM Cotizaciones <${process.env.SENDER_EMAIL}>`,
       to: quote.client_email,
+      replyTo: process.env.SENDER_EMAIL,  // ✅ RESPONDER A CORPORATIVO
       subject: '📋 Tu solicitud de presupuesto ha sido recibida - METSIM',
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
@@ -92,7 +94,7 @@ const sendQuoteToClient = async (quote) => {
             
             <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
               METSIM © 2026 | Soluciones Metalúrgicas Industriales<br>
-              <a href="https://metsim-frontend.vercel.app" style="color: #22d3ee; text-decoration: none;">metsim-frontend.vercel.app</a>
+              📧 ${process.env.SENDER_EMAIL}
             </p>
           </div>
         </div>
@@ -134,6 +136,7 @@ const sendQuoteToAdmin = async (quote, fileUrls = []) => {
     const data = await resend.emails.send({
       from: `METSIM Admin <${process.env.SENDER_EMAIL}>`,
       to: process.env.ADMIN_EMAIL,
+      replyTo: process.env.SENDER_EMAIL,  // ✅ RESPONDER A CORPORATIVO
       subject: `🔴 NUEVA COTIZACIÓN - ${quote.client_name}`,
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 700px; margin: 0 auto; background: #f5f5f5;">
@@ -194,7 +197,8 @@ ${quote.description}
             <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 40px 0;">
             
             <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
-              METSIM Admin © 2026 | Presupuestos Automatizados
+              METSIM Admin © 2026 | Presupuestos Automatizados<br>
+              📧 Responder a: ${process.env.SENDER_EMAIL}
             </p>
           </div>
         </div>
