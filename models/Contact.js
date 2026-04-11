@@ -1,3 +1,10 @@
+import React, { useState } from "react";
+import axios from "axios";
+import { toast } from "sonner";
+import { Send, Phone, Mail, MapPin } from "lucide-react";
+import "./Contact.css";
+// ... resto del código igual
+
 const mongoose = require('mongoose');
 
 const contactSchema = new mongoose.Schema({

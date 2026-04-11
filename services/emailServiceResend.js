@@ -60,7 +60,7 @@ const sendQuoteToClient = async (quote) => {
                 </tr>
                 <tr>
                   <td style="padding: 8px 0;"><strong>Fecha:</strong></td>
-                  <td style="padding: 8px 0; color: #666;">${new Date(quote.created_at).toLocaleString('es-PY')}</td>
+                  <td style="padding: 8px 0; color: #666;">${new Date(quote.created_at || quote.createdAt).toLocaleString('es-PY')}</td>
                 </tr>
               </table>
             </div>
@@ -170,7 +170,7 @@ const sendQuoteToAdmin = async (quote, fileUrls = []) => {
               </tr>
               <tr>
                 <td style="padding: 12px 15px; border: 1px solid #e0e0e0; font-weight: bold; background: #f9f9f9;">Fecha</td>
-                <td style="padding: 12px 15px; border: 1px solid #e0e0e0; color: #333;">${new Date(quote.created_at).toLocaleString('es-PY')}</td>
+                <td style="padding: 12px 15px; border: 1px solid #e0e0e0; color: #333;">${new Date(quote.created_at || quote.createdAt).toLocaleString('es-PY')}</td>
               </tr>
             </table>
 
