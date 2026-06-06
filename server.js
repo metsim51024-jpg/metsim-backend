@@ -8,14 +8,30 @@ require('dotenv').config();
 const app = express();
 
 // ✅ CONFIGURAR CORS CORRECTAMENTE
+const allowedOrigins = [
+  'https://www.metsim.com.py',
+  'https://metsim.com.py',
+  'https://metsim-frontend.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5000',
+  process.env.FRONTEND_URL || ''
+].filter(Boolean);
+
 const corsOptions = {
-  origin: [
-    'https://metsim-frontend.vercel.app',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5000',
-    process.env.FRONTEND_URL || ''
-  ].filter(Boolean),
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (apps móviles, curl, Postman)
+    if (!origin) return callback(null, true);
+    // Permitir dominios de la lista, cualquier subdominio de metsim.com.py y previews de Vercel
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.metsim.com.py') ||
+      origin.endsWith('.vercel.app')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true); // endpoints públicos: no bloquear
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
