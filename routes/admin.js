@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Quote = require('../models/Quote');
+const Contact = require('../models/Contact');
+const Visit = require('../models/Visit');
 
 // Middleware de autenticación
 const auth = (req, res, next) => {
@@ -105,6 +107,111 @@ router.get('/quotes', auth, async (req, res) => {
       message: 'Error al obtener cotizaciones',
       error: error.message
     });
+  }
+});
+
+// ✅ ACTUALIZAR ESTADO DE UNA COTIZACIÓN (CRM)
+router.patch('/quotes/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatus = ['pending', 'responded', 'accepted', 'rejected'];
+
+    if (!validStatus.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Estado inválido. Usar: ${validStatus.join(', ')}`
+      });
+    }
+
+    const quote = await Quote.findByIdAndUpdate(
+      req.params.id,
+      { status, updatedAt: Date.now() },
+      { new: true }
+    );
+
+    if (!quote) {
+      return res.status(404).json({ success: false, message: 'Cotización no encontrada' });
+    }
+
+    console.log(`✏️ Cotización ${req.params.id} → ${status}`);
+    res.status(200).json({ success: true, data: quote });
+  } catch (error) {
+    console.error('❌ Error actualizando estado:', error);
+    res.status(500).json({ success: false, message: 'Error al actualizar estado' });
+  }
+});
+
+// ✅ OBTENER MENSAJES DE CONTACTO
+router.get('/contacts', auth, async (req, res) => {
+  try {
+    const contacts = await Contact.find().sort({ createdAt: -1 }).limit(100);
+    console.log(`✅ ${contacts.length} mensajes de contacto encontrados`);
+    res.status(200).json({ success: true, count: contacts.length, data: contacts });
+  } catch (error) {
+    console.error('❌ Error obteniendo contactos:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener contactos' });
+  }
+});
+
+// ✅ ACTUALIZAR ESTADO DE UN MENSAJE DE CONTACTO
+router.patch('/contacts/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatus = ['nuevo', 'revisado', 'respondido', 'cerrado'];
+
+    if (!validStatus.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Estado inválido. Usar: ${validStatus.join(', ')}`
+      });
+    }
+
+    const contact = await Contact.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+
+    if (!contact) {
+      return res.status(404).json({ success: false, message: 'Mensaje no encontrado' });
+    }
+
+    res.status(200).json({ success: true, data: contact });
+  } catch (error) {
+    console.error('❌ Error actualizando contacto:', error);
+    res.status(500).json({ success: false, message: 'Error al actualizar contacto' });
+  }
+});
+
+// ✅ ESTADÍSTICAS DE VISITAS REALES
+router.get('/visits', auth, async (req, res) => {
+  try {
+    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [total, today, last7days, topPages] = await Promise.all([
+      Visit.countDocuments(),
+      Visit.countDocuments({ createdAt: { $gte: startOfToday } }),
+      Visit.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      Visit.aggregate([
+        { $group: { _id: '$path', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 8 }
+      ])
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total,
+        today,
+        last7days,
+        topPages: topPages.map(p => ({ path: p._id, count: p.count }))
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo visitas:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener visitas' });
   }
 });
 
