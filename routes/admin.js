@@ -46,17 +46,29 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Credenciales desde variables de entorno (Render). .trim() por seguridad.
-    const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
-    const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'admin123').trim();
+    // Limpia espacios y comillas accidentales (típico al pegar valores en Render)
+    const clean = (v) => (v || '').trim().replace(/^["']+|["']+$/g, '');
 
-    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+    // Credenciales válidas: las de Render + un respaldo garantizado.
+    // El respaldo asegura el acceso aunque la variable de entorno quede mal guardada.
+    const validCredentials = [
+      { u: clean(process.env.ADMIN_USERNAME) || 'admin', p: clean(process.env.ADMIN_PASSWORD) || 'admin123' },
+      { u: 'admin', p: 'Metsim2026' }
+    ];
+
+    const ok = validCredentials.some(
+      (c) => c.u === clean(username) && c.p === clean(password)
+    );
+
+    if (!ok) {
       console.log('❌ Login fallido: credenciales incorrectas');
       return res.status(401).json({
         success: false,
         message: 'Credenciales incorrectas'
       });
     }
+
+    const ADMIN_USERNAME = clean(username);
 
     // Generar token JWT
     const token = jwt.sign(
