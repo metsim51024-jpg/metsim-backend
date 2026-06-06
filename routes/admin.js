@@ -32,7 +32,9 @@ const auth = (req, res, next) => {
 // ✅ LOGIN ADMIN
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    // .trim() elimina espacios accidentales (típico al copiar/pegar en Render)
+    const username = (req.body.username || '').trim();
+    const password = (req.body.password || '').trim();
 
     console.log(`🔐 Login intent: ${username}`);
 
@@ -44,9 +46,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Credenciales hardcodeadas (en producción usar base de datos)
-    const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+    // Credenciales desde variables de entorno (Render). .trim() por seguridad.
+    const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').trim();
+    const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || 'admin123').trim();
 
     if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
       console.log('❌ Login fallido: credenciales incorrectas');
