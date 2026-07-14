@@ -9,7 +9,7 @@ const Visit = require('../models/Visit');
 const auth = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    
+
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -17,7 +17,12 @@ const auth = (req, res, next) => {
       });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET no configurado en el servidor');
+      return res.status(500).json({ success: false, message: 'Servidor mal configurado' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.admin = decoded;
     next();
   } catch (error) {
@@ -46,19 +51,17 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    if (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD || !process.env.JWT_SECRET) {
+      console.error('❌ ADMIN_USERNAME / ADMIN_PASSWORD / JWT_SECRET no configurados en el servidor');
+      return res.status(500).json({ success: false, message: 'Panel administrativo no configurado' });
+    }
+
     // Limpia espacios y comillas accidentales (típico al pegar valores en Render)
     const clean = (v) => (v || '').trim().replace(/^["']+|["']+$/g, '');
 
-    // Credenciales válidas: las de Render + un respaldo garantizado.
-    // El respaldo asegura el acceso aunque la variable de entorno quede mal guardada.
-    const validCredentials = [
-      { u: clean(process.env.ADMIN_USERNAME) || 'admin', p: clean(process.env.ADMIN_PASSWORD) || 'admin123' },
-      { u: 'admin', p: 'Metsim2026' }
-    ];
-
-    const ok = validCredentials.some(
-      (c) => c.u === clean(username) && c.p === clean(password)
-    );
+    const ok =
+      clean(username) === clean(process.env.ADMIN_USERNAME) &&
+      clean(password) === clean(process.env.ADMIN_PASSWORD);
 
     if (!ok) {
       console.log('❌ Login fallido: credenciales incorrectas');
@@ -73,7 +76,7 @@ router.post('/login', async (req, res) => {
     // Generar token JWT
     const token = jwt.sign(
       { id: 'admin', username: ADMIN_USERNAME },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
 
