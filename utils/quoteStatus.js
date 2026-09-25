@@ -11,32 +11,32 @@ const STAGES = [
   {
     key: 'received',
     label: 'Solicitud recibida',
-    description: 'Tu pedido entro al sistema y quedo registrado con su numero de seguimiento.'
+    description: 'Tu pedido entró al sistema y quedó registrado con su número de seguimiento.'
   },
   {
     key: 'analyzing',
-    label: 'En analisis tecnico',
+    label: 'En análisis técnico',
     description: 'Estamos revisando el alcance del proyecto y calculando materiales y plazos.'
   },
   {
     key: 'quoted',
     label: 'Presupuesto enviado',
-    description: 'Te enviamos la cotizacion por correo con el detalle de materiales y plazos.'
+    description: 'Te enviamos la cotización por correo con el detalle de materiales y plazos.'
   },
   {
     key: 'approved',
     label: 'Aprobado por el cliente',
-    description: 'Confirmaste el presupuesto y el proyecto entro en agenda de produccion.'
+    description: 'Confirmaste el presupuesto y el proyecto entró en agenda de producción.'
   },
   {
     key: 'drawings',
-    label: 'Planos en aprobacion',
-    description: 'Preparamos los planos de fabricacion y esperamos tu visto bueno para cortar material.'
+    label: 'Planos en aprobación',
+    description: 'Preparamos los planos de fabricación y esperamos tu visto bueno para cortar material.'
   },
   {
     key: 'manufacturing',
-    label: 'En fabricacion',
-    description: 'Tu pedido esta en planta. Te avisamos cuando pase a despacho.'
+    label: 'En fabricación',
+    description: 'Tu pedido está en planta. Te avisamos cuando pase a despacho.'
   },
   {
     key: 'delivered',
@@ -48,8 +48,8 @@ const STAGES = [
 /** Estado terminal que no forma parte del recorrido feliz. */
 const REJECTED = {
   key: 'rejected',
-  label: 'No continuo',
-  description: 'Este pedido quedo cerrado sin avanzar. Si fue un error, escribinos y lo reabrimos.'
+  label: 'No continuó',
+  description: 'Este pedido quedó cerrado sin avanzar. Si fue un error, escribinos y lo reabrimos.'
 };
 
 /**
