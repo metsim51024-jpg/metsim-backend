@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { SCHEMA_VALUES } = require('../utils/quoteStatus');
 
 const quoteSchema = new mongoose.Schema({
   client_name: {
@@ -29,9 +30,25 @@ const quoteSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['pending', 'responded', 'accepted', 'rejected'],
-    default: 'pending'
+    // Incluye los estados viejos (pending/responded/accepted) para no invalidar
+    // las cotizaciones anteriores al seguimiento. Ver utils/quoteStatus.js.
+    enum: SCHEMA_VALUES,
+    default: 'received'
   },
+  // Token del enlace publico de seguimiento. Es el unico secreto que protege
+  // los datos del pedido, asi que se genera con crypto y no se deriva del _id.
+  tracking_token: {
+    type: String,
+    index: { unique: true, sparse: true }
+  },
+  // Cada cambio de estado deja su marca, para poder mostrarle al cliente
+  // cuando paso cada cosa en vez de solo el estado actual.
+  status_history: [{
+    status: String,
+    at: { type: Date, default: Date.now },
+    note: String,
+    _id: false
+  }],
   createdAt: {
     type: Date,
     default: Date.now

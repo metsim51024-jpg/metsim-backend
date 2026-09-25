@@ -1,7 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const Quote = require('../models/Quote');
+const { ALL_KEYS, labelOf } = require('../utils/quoteStatus');
+const { sendStatusUpdate } = require('../services/emailServiceResend');
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.metsim.com.py';
+const trackingUrlFor = (token) => `${FRONTEND_URL}/seguimiento/${token}`;
 const Contact = require('../models/Contact');
 const Visit = require('../models/Visit');
 
@@ -130,28 +136,49 @@ router.get('/quotes', auth, async (req, res) => {
 // ✅ ACTUALIZAR ESTADO DE UNA COTIZACIÓN (CRM)
 router.patch('/quotes/:id/status', auth, async (req, res) => {
   try {
-    const { status } = req.body;
-    const validStatus = ['pending', 'responded', 'accepted', 'rejected'];
+    const { status, note } = req.body;
 
-    if (!validStatus.includes(status)) {
+    if (!ALL_KEYS.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: `Estado inválido. Usar: ${validStatus.join(', ')}`
+        message: `Estado inválido. Usar: ${ALL_KEYS.join(', ')}`
       });
     }
 
-    const quote = await Quote.findByIdAndUpdate(
-      req.params.id,
-      { status, updatedAt: Date.now() },
-      { new: true }
-    );
-
-    if (!quote) {
+    const previous = await Quote.findById(req.params.id).select('status tracking_token');
+    if (!previous) {
       return res.status(404).json({ success: false, message: 'Cotización no encontrada' });
     }
 
+    const now = new Date();
+    const update = {
+      $set: { status, updatedAt: now },
+      $push: { status_history: { status, at: now, ...(note ? { note } : {}) } }
+    };
+
+    // Las cotizaciones anteriores al seguimiento no tienen token todavía;
+    // se lo damos ahora, si no el aviso saldría sin enlace.
+    if (!previous.tracking_token) {
+      update.$set.tracking_token = crypto.randomBytes(24).toString('hex');
+    }
+
+    const quote = await Quote.findByIdAndUpdate(req.params.id, update, { new: true });
+
     console.log(`✏️ Cotización ${req.params.id} → ${status}`);
-    res.status(200).json({ success: true, data: quote });
+
+    // Avisar al cliente sin bloquear la respuesta del panel, y solo si el
+    // estado realmente cambió (evita spamear al reapretar el mismo botón).
+    if (previous.status !== status) {
+      sendStatusUpdate(quote, trackingUrlFor(quote.tracking_token))
+        .catch((err) => console.error('Error avisando cambio de estado:', err.message));
+    }
+
+    res.status(200).json({
+      success: true,
+      data: quote,
+      status_label: labelOf(status),
+      notified: previous.status !== status
+    });
   } catch (error) {
     console.error('❌ Error actualizando estado:', error);
     res.status(500).json({ success: false, message: 'Error al actualizar estado' });

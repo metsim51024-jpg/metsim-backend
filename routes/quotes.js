@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const crypto = require('crypto');
 const Quote = require('../models/Quote');
 const { protect } = require('../middleware/auth');
 const { sendQuoteEmail } = require('../utils/email');
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.metsim.com.py';
+const trackingUrlFor = (token) => `${FRONTEND_URL}/seguimiento/${token}`;
 
 // Configurar multer para archivos
 const storage = multer.memoryStorage();
@@ -56,6 +60,11 @@ router.post('/', upload.array('files', 5), async (req, res) => {
       console.log(`✅ ${fileUrls.length} archivos procesados`);
     }
 
+    // Token del enlace de seguimiento. 24 bytes -> 48 caracteres hex: no se
+    // puede adivinar por fuerza bruta, que es lo unico que protege este enlace.
+    const trackingToken = crypto.randomBytes(24).toString('hex');
+    const now = new Date();
+
     // Crear documento
     const newQuote = new Quote({
       client_name: client_name.trim(),
@@ -63,23 +72,26 @@ router.post('/', upload.array('files', 5), async (req, res) => {
       client_phone: client_phone.trim(),
       description: description.trim(),
       file_urls: fileUrls,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      status: 'received',
+      tracking_token: trackingToken,
+      status_history: [{ status: 'received', at: now }],
+      createdAt: now,
+      updatedAt: now
     });
 
     // Guardar en base de datos
     const savedQuote = await newQuote.save();
     console.log(`✅ Cotización guardada: ${savedQuote._id}`);
 
-    // Enviar email (sin bloquear la respuesta)
-    if (process.env.EMAIL_USER) {
-      sendQuoteEmail(client_email, {
-        name: client_name,
-        description: description,
-        files: fileUrls.length
-      }).catch(err => console.error('Error enviando email:', err.message));
-    }
+    // Enviar email (sin bloquear la respuesta).
+    // El envio real lo decide utils/email.js segun RESEND_API_KEY / ADMIN_EMAIL.
+    sendQuoteEmail(client_email, {
+      id: savedQuote._id,
+      name: client_name,
+      description: description,
+      files: fileUrls.length,
+      trackingUrl: trackingUrlFor(trackingToken)
+    }).catch(err => console.error('Error enviando email:', err.message));
 
     // Responder al cliente
     res.status(201).json({
@@ -88,6 +100,8 @@ router.post('/', upload.array('files', 5), async (req, res) => {
       data: {
         id: savedQuote._id,
         status: savedQuote.status,
+        tracking_token: trackingToken,
+        tracking_url: trackingUrlFor(trackingToken),
         message: 'Hemos recibido tu cotización. Revisa tu correo.'
       }
     });

@@ -17,7 +17,8 @@ const sendQuoteEmail = async (clientEmail, quoteData) => {
       description: quoteData.description,
       file_urls: quoteData.files || [],
       created_at: new Date(),
-      _id: quoteData.id || 'PENDING'
+      _id: quoteData.id || 'PENDING',
+      tracking_url: quoteData.trackingUrl || null
     };
 
     // Enviar email al cliente

@@ -1,5 +1,6 @@
 // backend/services/emailServiceResend.js
 const { Resend } = require('resend');
+const { STAGES, REJECTED, normalizeStatus, labelOf } = require('../utils/quoteStatus');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -69,6 +70,19 @@ const sendQuoteToClient = async (quote) => {
               <strong>⏱️ Tiempo de respuesta:</strong> Normalmente respondemos dentro de 24 horas hábiles. 
               Si tienes urgencia, puedes contactarnos directamente.
             </p>
+
+            ${quote.tracking_url ? `
+            <div style="background: #0f1523; padding: 28px 24px; border-radius: 6px; margin: 30px 0; text-align: center;">
+              <p style="color: #22d3ee; margin: 0 0 8px 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: bold;">
+                Seguimiento en línea
+              </p>
+              <p style="color: #cbd5e1; margin: 0 0 22px 0; font-size: 14px; line-height: 1.6;">
+                Guardá este enlace. Podés ver en qué etapa está tu pedido cuando quieras,<br>sin tener que preguntar.
+              </p>
+              <a href="${quote.tracking_url}" style="background: #22d3ee; color: #0f1523; padding: 14px 32px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 15px;">
+                Ver estado de mi presupuesto
+              </a>
+            </div>` : ''}
 
             <div style="border-top: 2px solid #e0e0e0; padding-top: 30px; text-align: center; margin-top: 30px;">
               <p style="color: #666; margin: 0 0 15px 0; font-size: 14px;">
@@ -214,7 +228,70 @@ ${quote.description}
   }
 };
 
+// Aviso al cliente cada vez que su pedido cambia de etapa.
+// Se dispara desde routes/admin.js cuando se mueve el estado desde el panel.
+const sendStatusUpdate = async (quote, trackingUrl) => {
+  try {
+    const status = normalizeStatus(quote.status);
+    const stage = status === REJECTED.key ? REJECTED : STAGES.find((s) => s.key === status);
+    const label = labelOf(status);
+
+    console.log(`📧 Avisando cambio de estado a ${quote.client_email}: ${label}`);
+
+    await resend.emails.send({
+      from: `METSIM Cotizaciones <${process.env.SENDER_EMAIL}>`,
+      to: quote.client_email,
+      replyTo: process.env.SENDER_EMAIL,
+      subject: `Tu pedido avanzó: ${label} - METSIM`,
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
+          <div style="background: linear-gradient(135deg, #22d3ee, #06b6d4); padding: 36px 20px; color: white; text-align: center; border-radius: 8px 8px 0 0;">
+            <p style="margin: 0 0 8px 0; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.85;">Nuevo estado</p>
+            <h1 style="margin: 0; font-size: 26px;">${label}</h1>
+          </div>
+
+          <div style="background: white; padding: 40px; border-radius: 0 0 8px 8px;">
+            <p style="font-size: 16px; color: #333;">Hola <strong>${quote.client_name}</strong>,</p>
+
+            <p style="color: #666; line-height: 1.8; font-size: 15px;">
+              ${stage ? stage.description : 'Tu pedido cambió de estado.'}
+            </p>
+
+            ${trackingUrl ? `
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${trackingUrl}" style="background: #22d3ee; color: #0f1523; padding: 14px 32px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 15px;">
+                Ver el recorrido completo
+              </a>
+            </div>` : ''}
+
+            <div style="border-top: 2px solid #e0e0e0; padding-top: 26px; text-align: center; margin-top: 30px;">
+              <p style="color: #666; margin: 0 0 15px 0; font-size: 14px;">¿Tenés una consulta sobre este pedido?</p>
+              <a href="https://wa.me/595994685767" style="background: #25d366; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 14px;">
+                💬 Escribinos por WhatsApp
+              </a>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 36px 0;">
+
+            <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
+              METSIM © 2026 | Soluciones Metalúrgicas Industriales<br>
+              📧 ${process.env.SENDER_EMAIL}
+            </p>
+          </div>
+        </div>
+      `
+    });
+
+    console.log(`✅ Aviso de estado enviado a ${quote.client_email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando aviso de estado:', error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   sendQuoteToClient,
-  sendQuoteToAdmin
+  sendQuoteToAdmin,
+  sendStatusUpdate
 };

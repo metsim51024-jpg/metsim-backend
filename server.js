@@ -124,6 +124,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/contacts', require('./routes/contacts'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/visits', require('./routes/visits'));
+app.use('/api/tracking', require('./routes/tracking'));
 
 // Static files (si existen)
 if (process.env.NODE_ENV === 'production') {
