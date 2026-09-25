@@ -113,7 +113,14 @@ app.get('/api/health', (req, res) => {
     mongoReadyState: mongoStatus,
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV || 'development',
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    // Diagnostico de correo. Solo la direccion remitente, que ya viaja visible
+    // en el "De:" de cada correo que enviamos; nunca la API key ni el destino.
+    email: {
+      sender: process.env.SENDER_EMAIL || null,
+      resendKey: Boolean(process.env.RESEND_API_KEY),
+      adminEmail: Boolean(process.env.ADMIN_EMAIL)
+    }
   });
 });
 
