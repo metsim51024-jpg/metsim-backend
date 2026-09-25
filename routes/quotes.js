@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const Quote = require('../models/Quote');
+const { protect } = require('../middleware/auth');
 const { sendQuoteEmail } = require('../utils/email');
 
 // Configurar multer para archivos
@@ -101,8 +102,10 @@ router.post('/', upload.array('files', 5), async (req, res) => {
   }
 });
 
-// ✅ OBTENER COTIZACIONES
-router.get('/', async (req, res) => {
+// ✅ OBTENER COTIZACIONES (solo admin)
+// Sin `protect` este endpoint devolvia el nombre, email, telefono y descripcion
+// de todos los clientes a cualquiera que lo pidiera.
+router.get('/', protect, async (req, res) => {
   try {
     const quotes = await Quote.find()
       .sort({ createdAt: -1 })
