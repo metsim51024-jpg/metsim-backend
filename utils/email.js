@@ -14,6 +14,7 @@ const sendQuoteEmail = async (clientEmail, quoteData) => {
     const quote = {
       client_email: clientEmail,
       client_name: quoteData.name,
+      client_phone: quoteData.phone || 'No informado',
       description: quoteData.description,
       file_urls: quoteData.files || [],
       created_at: new Date(),
@@ -21,19 +22,27 @@ const sendQuoteEmail = async (clientEmail, quoteData) => {
       tracking_url: quoteData.trackingUrl || null
     };
 
-    // Enviar email al cliente
-    if (process.env.RESEND_API_KEY) {
-      await sendQuoteToClient(quote);
-      console.log('✅ Email enviado al cliente');
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('⚠️ RESEND_API_KEY no está definida: no se envía ningún correo');
+      return false;
     }
 
-    // Enviar email al admin
-    if (process.env.ADMIN_EMAIL) {
-      await sendQuoteToAdmin(quote, quote.file_urls);
-      console.log('✅ Email enviado al admin');
-    }
+    // Independientes a proposito: que Resend rechace el del cliente no puede
+    // dejar sin avisar al admin, ni al reves.
+    const [cliente, admin] = await Promise.allSettled([
+      sendQuoteToClient(quote),
+      process.env.ADMIN_EMAIL
+        ? sendQuoteToAdmin(quote, quote.file_urls)
+        : Promise.reject(new Error('ADMIN_EMAIL no está definida'))
+    ]);
 
-    return true;
+    if (cliente.status === 'fulfilled') console.log('✅ Email enviado al cliente');
+    else console.error('❌ Email al CLIENTE falló:', cliente.reason.message);
+
+    if (admin.status === 'fulfilled') console.log('✅ Email enviado al admin');
+    else console.error('❌ Email al ADMIN falló:', admin.reason.message);
+
+    return cliente.status === 'fulfilled' && admin.status === 'fulfilled';
   } catch (error) {
     console.error('❌ Error enviando emails:', error.message);
     // No lanzamos error para no bloquear la respuesta

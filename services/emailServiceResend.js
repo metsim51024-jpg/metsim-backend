@@ -15,7 +15,7 @@ const sendQuoteToClient = async (quote) => {
     console.log(`📧 Enviando email a cliente: ${quote.client_email}`);
     console.log(`   Desde: ${process.env.SENDER_EMAIL}`);
 
-    const data = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: `METSIM Cotizaciones <${process.env.SENDER_EMAIL}>`,
       to: quote.client_email,
       replyTo: process.env.SENDER_EMAIL,  // ✅ RESPONDER A CORPORATIVO
@@ -115,6 +115,12 @@ const sendQuoteToClient = async (quote) => {
       `
     });
 
+    if (error) {
+      // Resend devuelve el motivo aca (dominio sin verificar, modo prueba,
+      // destinatario no permitido). Sin esto el fallo era invisible.
+      throw new Error(error.message || JSON.stringify(error));
+    }
+
     console.log(`✅ Email enviado al cliente: ${quote.client_email}`);
     return true;
 
@@ -147,7 +153,7 @@ const sendQuoteToAdmin = async (quote, fileUrls = []) => {
       `
       : '<p style="color: #999; font-style: italic;">Sin archivos adjuntos</p>';
 
-    const data = await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: `METSIM Admin <${process.env.SENDER_EMAIL}>`,
       to: process.env.ADMIN_EMAIL,
       replyTo: process.env.SENDER_EMAIL,  // ✅ RESPONDER A CORPORATIVO
@@ -219,6 +225,12 @@ ${quote.description}
       `
     });
 
+    if (error) {
+      // Resend devuelve el motivo aca (dominio sin verificar, modo prueba,
+      // destinatario no permitido). Sin esto el fallo era invisible.
+      throw new Error(error.message || JSON.stringify(error));
+    }
+
     console.log(`✅ Email enviado al admin: ${process.env.ADMIN_EMAIL}`);
     return true;
 
@@ -238,7 +250,7 @@ const sendStatusUpdate = async (quote, trackingUrl) => {
 
     console.log(`📧 Avisando cambio de estado a ${quote.client_email}: ${label}`);
 
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: `METSIM Cotizaciones <${process.env.SENDER_EMAIL}>`,
       to: quote.client_email,
       replyTo: process.env.SENDER_EMAIL,
@@ -281,6 +293,12 @@ const sendStatusUpdate = async (quote, trackingUrl) => {
         </div>
       `
     });
+
+    if (error) {
+      // Resend devuelve el motivo aca (dominio sin verificar, modo prueba,
+      // destinatario no permitido). Sin esto el fallo era invisible.
+      throw new Error(error.message || JSON.stringify(error));
+    }
 
     console.log(`✅ Aviso de estado enviado a ${quote.client_email}`);
     return true;

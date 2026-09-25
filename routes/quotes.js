@@ -88,6 +88,7 @@ router.post('/', upload.array('files', 5), async (req, res) => {
     sendQuoteEmail(client_email, {
       id: savedQuote._id,
       name: client_name,
+      phone: client_phone,
       description: description,
       files: fileUrls.length,
       trackingUrl: trackingUrlFor(trackingToken)
