@@ -6,8 +6,7 @@ const Quote = require('../models/Quote');
 const { protect } = require('../middleware/auth');
 const { sendQuoteEmail } = require('../utils/email');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.metsim.com.py';
-const trackingUrlFor = (token) => `${FRONTEND_URL}/seguimiento/${token}`;
+const { trackingUrlFor } = require('../utils/siteUrl');
 
 // Configurar multer para archivos
 const storage = multer.memoryStorage();

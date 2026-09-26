@@ -121,7 +121,8 @@ app.get('/api/health', (req, res) => {
       resendKey: Boolean(process.env.RESEND_API_KEY),
       adminEmail: Boolean(process.env.ADMIN_EMAIL),
       ultimoEnvio: require('./utils/email').ultimoEnvioDeCorreo()
-    }
+    },
+    siteUrl: require('./utils/siteUrl').SITE_URL
   });
 });
 

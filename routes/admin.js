@@ -6,8 +6,7 @@ const Quote = require('../models/Quote');
 const { ALL_KEYS, labelOf } = require('../utils/quoteStatus');
 const { sendStatusUpdate } = require('../services/emailServiceResend');
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://www.metsim.com.py';
-const trackingUrlFor = (token) => `${FRONTEND_URL}/seguimiento/${token}`;
+const { trackingUrlFor } = require('../utils/siteUrl');
 const Contact = require('../models/Contact');
 const Visit = require('../models/Visit');
 
