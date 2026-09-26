@@ -2,23 +2,37 @@
 const { Resend } = require('resend');
 const { STAGES, REJECTED, normalizeStatus, labelOf } = require('../utils/quoteStatus');
 
+// Remitente de los correos. No es un secreto: viaja visible en el "De:" de cada
+// envio, asi que el valor bueno vive en el codigo y SENDER_EMAIL queda opcional.
+//
+// onboarding@resend.dev es el remitente compartido de prueba de Resend: solo
+// entrega a la casilla duena de la cuenta, nunca a un cliente. Si llega ese
+// valor se ignora, porque en produccion siempre es un error de configuracion.
+const DEFAULT_SENDER = 'presupuestos@metsim.com.py';
+const configurado = (process.env.SENDER_EMAIL || '').trim();
+const SENDER = (!configurado || configurado.endsWith('@resend.dev')) ? DEFAULT_SENDER : configurado;
+
+if (configurado && configurado !== SENDER) {
+  console.warn(`⚠️ SENDER_EMAIL='${configurado}' ignorado (remitente de prueba). Se usa ${SENDER}`);
+}
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 console.log('\n🔧 Configurando Resend Email Service...');
 console.log('   RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✅' : '❌');
-console.log('   SENDER_EMAIL:', process.env.SENDER_EMAIL, process.env.SENDER_EMAIL ? '✅' : '❌');
+console.log('   Remitente:', SENDER);
 console.log('   ADMIN_EMAIL:', process.env.ADMIN_EMAIL, process.env.ADMIN_EMAIL ? '✅' : '❌\n');
 
 // Email al cliente
 const sendQuoteToClient = async (quote) => {
   try {
     console.log(`📧 Enviando email a cliente: ${quote.client_email}`);
-    console.log(`   Desde: ${process.env.SENDER_EMAIL}`);
+    console.log(`   Desde: ${SENDER}`);
 
     const { error } = await resend.emails.send({
-      from: `METSIM Cotizaciones <${process.env.SENDER_EMAIL}>`,
+      from: `METSIM Cotizaciones <${SENDER}>`,
       to: quote.client_email,
-      replyTo: process.env.SENDER_EMAIL,  // ✅ RESPONDER A CORPORATIVO
+      replyTo: SENDER,  // ✅ RESPONDER A CORPORATIVO
       subject: '📋 Tu solicitud de presupuesto ha sido recibida - METSIM',
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
@@ -108,7 +122,7 @@ const sendQuoteToClient = async (quote) => {
             
             <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
               METSIM © 2026 | Soluciones Metalúrgicas Industriales<br>
-              📧 ${process.env.SENDER_EMAIL}
+              📧 ${SENDER}
             </p>
           </div>
         </div>
@@ -154,9 +168,9 @@ const sendQuoteToAdmin = async (quote, fileUrls = []) => {
       : '<p style="color: #999; font-style: italic;">Sin archivos adjuntos</p>';
 
     const { error } = await resend.emails.send({
-      from: `METSIM Admin <${process.env.SENDER_EMAIL}>`,
+      from: `METSIM Admin <${SENDER}>`,
       to: process.env.ADMIN_EMAIL,
-      replyTo: process.env.SENDER_EMAIL,  // ✅ RESPONDER A CORPORATIVO
+      replyTo: SENDER,  // ✅ RESPONDER A CORPORATIVO
       subject: `🔴 NUEVA COTIZACIÓN - ${quote.client_name}`,
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 700px; margin: 0 auto; background: #f5f5f5;">
@@ -218,7 +232,7 @@ ${quote.description}
             
             <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
               METSIM Admin © 2026 | Presupuestos Automatizados<br>
-              📧 Responder a: ${process.env.SENDER_EMAIL}
+              📧 Responder a: ${SENDER}
             </p>
           </div>
         </div>
@@ -251,9 +265,9 @@ const sendStatusUpdate = async (quote, trackingUrl) => {
     console.log(`📧 Avisando cambio de estado a ${quote.client_email}: ${label}`);
 
     const { error } = await resend.emails.send({
-      from: `METSIM Cotizaciones <${process.env.SENDER_EMAIL}>`,
+      from: `METSIM Cotizaciones <${SENDER}>`,
       to: quote.client_email,
-      replyTo: process.env.SENDER_EMAIL,
+      replyTo: SENDER,
       subject: `Tu pedido avanzó: ${label} - METSIM`,
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
@@ -287,7 +301,7 @@ const sendStatusUpdate = async (quote, trackingUrl) => {
 
             <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
               METSIM © 2026 | Soluciones Metalúrgicas Industriales<br>
-              📧 ${process.env.SENDER_EMAIL}
+              📧 ${SENDER}
             </p>
           </div>
         </div>
@@ -308,7 +322,11 @@ const sendStatusUpdate = async (quote, trackingUrl) => {
   }
 };
 
+// Para que /api/health informe el remitente realmente en uso, no el del env.
+const remitente = () => SENDER;
+
 module.exports = {
+  remitente,
   sendQuoteToClient,
   sendQuoteToAdmin,
   sendStatusUpdate

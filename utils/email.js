@@ -1,6 +1,11 @@
 // backend/utils/email.js
 const { sendQuoteToClient, sendQuoteToAdmin } = require('../services/emailServiceResend');
 
+// Resultado del ultimo envio, para poder diagnosticar desde /api/health sin
+// tener que abrir los logs de Render. Solo vive en memoria del proceso.
+let ultimoEnvio = null;
+const ultimoEnvioDeCorreo = () => ultimoEnvio;
+
 /**
  * Envía email de confirmación al cliente y notificación al admin
  * @param {string} clientEmail - Email del cliente
@@ -42,6 +47,12 @@ const sendQuoteEmail = async (clientEmail, quoteData) => {
     if (admin.status === 'fulfilled') console.log('✅ Email enviado al admin');
     else console.error('❌ Email al ADMIN falló:', admin.reason.message);
 
+    ultimoEnvio = {
+      at: new Date().toISOString(),
+      cliente: cliente.status === 'fulfilled' ? 'ok' : cliente.reason.message,
+      admin: admin.status === 'fulfilled' ? 'ok' : admin.reason.message
+    };
+
     return cliente.status === 'fulfilled' && admin.status === 'fulfilled';
   } catch (error) {
     console.error('❌ Error enviando emails:', error.message);
@@ -50,4 +61,4 @@ const sendQuoteEmail = async (clientEmail, quoteData) => {
   }
 };
 
-module.exports = { sendQuoteEmail };
+module.exports = { sendQuoteEmail, ultimoEnvioDeCorreo };
