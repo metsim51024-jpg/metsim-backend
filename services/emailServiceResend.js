@@ -16,12 +16,23 @@ if (configurado && configurado !== SENDER) {
   console.warn(`⚠️ SENDER_EMAIL='${configurado}' ignorado (remitente de prueba). Se usa ${SENDER}`);
 }
 
+// A donde llegan los avisos de cotizaciones nuevas. Misma razon que el
+// remitente: es la casilla corporativa, no un secreto, y no puede depender de
+// una variable de Render que no guarda los cambios.
+const DEFAULT_ADMIN = 'presupuestos@metsim.com.py';
+const ADMIN_TO = DEFAULT_ADMIN;
+const adminConfigurado = (process.env.ADMIN_EMAIL || '').trim();
+
+if (adminConfigurado && adminConfigurado !== ADMIN_TO) {
+  console.warn(`⚠️ ADMIN_EMAIL='${adminConfigurado}' ignorado. Los avisos van a ${ADMIN_TO}`);
+}
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 console.log('\n🔧 Configurando Resend Email Service...');
 console.log('   RESEND_API_KEY:', process.env.RESEND_API_KEY ? '✅' : '❌');
 console.log('   Remitente:', SENDER);
-console.log('   ADMIN_EMAIL:', process.env.ADMIN_EMAIL, process.env.ADMIN_EMAIL ? '✅' : '❌\n');
+console.log('   Avisos a:', ADMIN_TO);
 
 // Email al cliente
 const sendQuoteToClient = async (quote) => {
@@ -147,7 +158,7 @@ const sendQuoteToClient = async (quote) => {
 // Email al admin
 const sendQuoteToAdmin = async (quote, fileUrls = []) => {
   try {
-    console.log(`📧 Enviando email al admin: ${process.env.ADMIN_EMAIL}`);
+    console.log(`📧 Enviando email al admin: ${ADMIN_TO}`);
 
     const filesHTML = fileUrls.length > 0 
       ? `
@@ -169,7 +180,7 @@ const sendQuoteToAdmin = async (quote, fileUrls = []) => {
 
     const { error } = await resend.emails.send({
       from: `METSIM Admin <${SENDER}>`,
-      to: process.env.ADMIN_EMAIL,
+      to: ADMIN_TO,
       replyTo: SENDER,  // ✅ RESPONDER A CORPORATIVO
       subject: `🔴 NUEVA COTIZACIÓN - ${quote.client_name}`,
       html: `
@@ -245,7 +256,7 @@ ${quote.description}
       throw new Error(error.message || JSON.stringify(error));
     }
 
-    console.log(`✅ Email enviado al admin: ${process.env.ADMIN_EMAIL}`);
+    console.log(`✅ Email enviado al admin: ${ADMIN_TO}`);
     return true;
 
   } catch (error) {
@@ -322,11 +333,73 @@ const sendStatusUpdate = async (quote, trackingUrl) => {
   }
 };
 
+// Reenvio del enlace de seguimiento al cliente que perdio el correo original.
+// Va siempre a la direccion registrada en el pedido, nunca a la que se escriba
+// en el formulario, para que no sirva para leer pedidos ajenos.
+const sendTrackingRecovery = async (quote, trackingUrl) => {
+  try {
+    console.log(`📧 Reenviando seguimiento a ${quote.client_email}`);
+
+    const { error } = await resend.emails.send({
+      from: `METSIM Cotizaciones <${SENDER}>`,
+      to: quote.client_email,
+      replyTo: SENDER,
+      subject: 'Tu enlace de seguimiento - METSIM',
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5;">
+          <div style="background: linear-gradient(135deg, #22d3ee, #06b6d4); padding: 36px 20px; color: white; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="margin: 0; font-size: 26px;">Tu enlace de seguimiento</h1>
+          </div>
+
+          <div style="background: white; padding: 40px; border-radius: 0 0 8px 8px;">
+            <p style="font-size: 16px; color: #333;">Hola <strong>${quote.client_name}</strong>,</p>
+
+            <p style="color: #666; line-height: 1.8; font-size: 15px;">
+              Ac&aacute; est&aacute; de nuevo el enlace para ver en qu&eacute; etapa est&aacute; tu pedido.
+              Gu&aacute;rdalo en favoritos y entr&aacute; cuando quieras.
+            </p>
+
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="${trackingUrl}" style="background: #22d3ee; color: #0f1523; padding: 14px 32px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 15px;">
+                Ver estado de mi presupuesto
+              </a>
+            </div>
+
+            <p style="color: #999; font-size: 13px; line-height: 1.6; text-align: center;">
+              Si no pediste esto, pod&eacute;s ignorar el correo: el enlace ya exist&iacute;a y no se cre&oacute; nada nuevo.
+            </p>
+
+            <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 36px 0;">
+
+            <p style="color: #999; font-size: 12px; text-align: center; margin: 0;">
+              METSIM &copy; 2026 | Soluciones Metal&uacute;rgicas Industriales<br>
+              📧 ${SENDER}
+            </p>
+          </div>
+        </div>
+      `
+    });
+
+    if (error) {
+      throw new Error(error.message || JSON.stringify(error));
+    }
+
+    console.log(`✅ Seguimiento reenviado a ${quote.client_email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error reenviando seguimiento:', error.message);
+    throw error;
+  }
+};
+
 // Para que /api/health informe el remitente realmente en uso, no el del env.
 const remitente = () => SENDER;
+const destinatarioAdmin = () => ADMIN_TO;
 
 module.exports = {
   remitente,
+  sendTrackingRecovery,
+  destinatarioAdmin,
   sendQuoteToClient,
   sendQuoteToAdmin,
   sendStatusUpdate

@@ -36,9 +36,7 @@ const sendQuoteEmail = async (clientEmail, quoteData) => {
     // dejar sin avisar al admin, ni al reves.
     const [cliente, admin] = await Promise.allSettled([
       sendQuoteToClient(quote),
-      process.env.ADMIN_EMAIL
-        ? sendQuoteToAdmin(quote, quote.file_urls)
-        : Promise.reject(new Error('ADMIN_EMAIL no está definida'))
+      sendQuoteToAdmin(quote, quote.file_urls)
     ]);
 
     if (cliente.status === 'fulfilled') console.log('✅ Email enviado al cliente');
