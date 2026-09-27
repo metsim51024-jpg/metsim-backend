@@ -13,12 +13,37 @@ const Visit = require('../models/Visit');
 
 // El guardia del panel vive en middleware/auth.js (unico sistema de login).
 
+// Limite de intentos por IP. Sin esto se podian probar contrasenas sin freno.
+const intentos = new Map();
+const VENTANA_MS = 15 * 60 * 1000;
+const MAX_INTENTOS = 10;
+
+const demasiadosIntentos = (ip) => {
+  const ahora = Date.now();
+  const reg = intentos.get(ip);
+  if (!reg || ahora - reg.desde > VENTANA_MS) {
+    intentos.set(ip, { desde: ahora, n: 1 });
+    return false;
+  }
+  reg.n += 1;
+  return reg.n > MAX_INTENTOS;
+};
+
 // ✅ LOGIN ADMIN
 router.post('/login', async (req, res) => {
   try {
     // .trim() elimina espacios accidentales (típico al copiar/pegar en Render)
     const username = (req.body.username || '').trim();
     const password = (req.body.password || '').trim();
+
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'desconocida';
+    if (demasiadosIntentos(ip)) {
+      console.warn(`🚫 Demasiados intentos de login desde ${ip}`);
+      return res.status(429).json({
+        success: false,
+        message: 'Demasiados intentos. Esperá 15 minutos.'
+      });
+    }
 
     console.log(`🔐 Login intent: ${username}`);
 

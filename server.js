@@ -122,7 +122,21 @@ app.get('/api/health', (req, res) => {
       avisosA: require('./services/emailServiceResend').destinatarioAdmin(),
       ultimoEnvio: require('./utils/email').ultimoEnvioDeCorreo()
     },
-    siteUrl: require('./utils/siteUrl').SITE_URL
+    siteUrl: require('./utils/siteUrl').SITE_URL,
+    // Diagnostico temporal del login: solo formas, nunca los valores. Sirve
+    // para comparar contra lo que muestra Render y detectar que el servicio
+    // este corriendo con credenciales viejas.
+    admin: (() => {
+      const u = process.env.ADMIN_USERNAME || '';
+      const p = process.env.ADMIN_PASSWORD || '';
+      const forma = (v) => ({
+        largo: v.length,
+        largoSinEspacios: v.trim().length,
+        tieneComillas: /^["']|["']$/.test(v.trim()),
+        soloASCII: /^[ -~]*$/.test(v)
+      });
+      return { usuario: forma(u), contrasena: forma(p) };
+    })()
   });
 });
 
