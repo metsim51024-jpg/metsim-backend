@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const Quote = require('../models/Quote');
+const { protect: auth } = require('../middleware/auth');
 const { ALL_KEYS, labelOf } = require('../utils/quoteStatus');
 const { sendStatusUpdate } = require('../services/emailServiceResend');
 
@@ -10,34 +11,7 @@ const { trackingUrlFor } = require('../utils/siteUrl');
 const Contact = require('../models/Contact');
 const Visit = require('../models/Visit');
 
-// Middleware de autenticación
-const auth = (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token requerido'
-      });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      console.error('❌ JWT_SECRET no configurado en el servidor');
-      return res.status(500).json({ success: false, message: 'Servidor mal configurado' });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.admin = decoded;
-    next();
-  } catch (error) {
-    console.error('Auth error:', error.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Token inválido o expirado'
-    });
-  }
-};
+// El guardia del panel vive en middleware/auth.js (unico sistema de login).
 
 // ✅ LOGIN ADMIN
 router.post('/login', async (req, res) => {

@@ -128,7 +128,6 @@ app.get('/api/health', (req, res) => {
 
 // Rutas de negocio
 app.use('/api/quotes', require('./routes/quotes'));
-app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/contacts', require('./routes/contacts'));
 app.use('/api/projects', require('./routes/projects'));
@@ -177,7 +176,6 @@ app.use((req, res) => {
       'GET /api/health',
       'POST /api/quotes',
       'GET /api/quotes',
-      'POST /api/auth/login',
       'GET /api/admin/quotes',
       'POST /api/contacts'
     ]
