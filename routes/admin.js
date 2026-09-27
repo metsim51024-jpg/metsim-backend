@@ -84,15 +84,19 @@ router.get('/quotes', auth, async (req, res) => {
   try {
     console.log('📋 Obteniendo cotizaciones...');
 
-    const quotes = await Quote.find()
-      .sort({ createdAt: -1 })
-      .limit(100);
+    // `count` era la cantidad devuelta, tope 100, y el panel la mostraba como
+    // el total de cotizaciones: a partir de la 101 el numero quedaba congelado.
+    const [quotes, total] = await Promise.all([
+      Quote.find().sort({ createdAt: -1 }).limit(100),
+      Quote.countDocuments()
+    ]);
 
-    console.log(`✅ ${quotes.length} cotizaciones encontradas`);
+    console.log(`✅ ${quotes.length} cotizaciones devueltas de ${total}`);
 
     res.status(200).json({
       success: true,
       count: quotes.length,
+      total,
       data: quotes
     });
 
@@ -206,23 +210,41 @@ router.get('/visits', auth, async (req, res) => {
     const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const [total, today, last7days, topPages] = await Promise.all([
-      Visit.countDocuments(),
-      Visit.countDocuments({ createdAt: { $gte: startOfToday } }),
-      Visit.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
-      Visit.aggregate([
-        { $group: { _id: '$path', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 8 }
-      ])
-    ]);
+    // Paginas vistas y personas son cosas distintas: una misma persona que
+    // recorre cinco paginas son cinco vistas y un solo visitante. Mezclarlas
+    // hacia que el panel mostrara mas "visitas" de las que hubo.
+    const unicos = async (filtro) => {
+      const r = await Visit.distinct('visitorId', { ...filtro, visitorId: { $nin: ['', null] } });
+      return r.length;
+    };
+
+    const [total, today, last7days, topPages, visitantes, visitantesHoy, visitantes7] =
+      await Promise.all([
+        Visit.countDocuments(),
+        Visit.countDocuments({ createdAt: { $gte: startOfToday } }),
+        Visit.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+        Visit.aggregate([
+          { $group: { _id: '$path', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 8 }
+        ]),
+        unicos({}),
+        unicos({ createdAt: { $gte: startOfToday } }),
+        unicos({ createdAt: { $gte: sevenDaysAgo } })
+      ]);
 
     res.status(200).json({
       success: true,
       data: {
+        // paginas vistas
         total,
         today,
         last7days,
+        // personas distintas (0 en las visitas anteriores a esta medicion,
+        // que se guardaron sin visitorId)
+        visitors: visitantes,
+        visitorsToday: visitantesHoy,
+        visitors7days: visitantes7,
         topPages: topPages.map(p => ({ path: p._id, count: p.count }))
       }
     });
@@ -260,31 +282,4 @@ router.get('/orders', auth, async (req, res) => {
 });
 
 // ✅ OBTENER ESTADÍSTICAS
-router.get('/stats', auth, async (req, res) => {
-  try {
-    const totalQuotes = await Quote.countDocuments();
-    const quotesToday = await Quote.countDocuments({
-      createdAt: {
-        $gte: new Date(new Date().setHours(0, 0, 0, 0))
-      }
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        totalVisits: totalQuotes * 10,
-        visitsToday: quotesToday * 2,
-        totalConversions: Math.floor(totalQuotes * 0.3),
-        conversionRate: totalQuotes > 0 ? 30 : 0
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error obteniendo stats:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error al obtener estadísticas'
-    });
-  }
-});
-
 module.exports = router;
